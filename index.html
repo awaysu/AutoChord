@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AutoChord 自動撥弦</title>
+<style>
+  :root{
+    --bg:#1b1f27; --panel:#262b36; --fg:#e8ebf2; --muted:#9aa3b5;
+    --accent:#f5a623; --white:#f7f7f4; --whiteActive:#ffe0a3; --black:#1a1a1a; --blackActive:#7a5a1a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,"Noto Sans TC","Microsoft JhengHei",sans-serif;padding:12px;display:flex;flex-direction:column;align-items:center;gap:12px;-webkit-app-region:no-drag}
+  h1{font-size:18px;margin:0;font-weight:600;-webkit-app-region:drag;width:100%;text-align:center;cursor:move}
+  .panel{background:var(--panel);border-radius:12px;padding:10px 14px;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-end;justify-content:center;max-width:980px;width:100%}
+  label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted)}
+  select,input,button{font:inherit;font-size:14px;padding:5px 9px;border-radius:8px;border:1px solid #3a4150;background:#171a21;color:var(--fg)}
+  input[type=range]{padding:0;width:120px}
+  button{cursor:pointer;background:#3a4150}
+  button.on{background:var(--accent);color:#222;font-weight:600}
+  .display{font-size:14px;color:var(--muted);min-height:22px;text-align:center}
+  .display b{color:var(--accent);font-size:22px;margin:0 6px}
+  .display small{color:#6c7589}
+  .pattern-view{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;min-height:30px}
+  .pattern-view span{padding:3px 8px;border-radius:6px;background:#171a21;font-family:ui-monospace,Consolas,monospace;font-size:14px;color:var(--muted)}
+  .pattern-view span.on{background:var(--accent);color:#222;font-weight:600}
+
+  .keyboard{position:relative;display:flex;user-select:none;width:800px;max-width:100%;height:290px}
+  .white{flex:1;background:var(--white);border:1px solid #888;border-radius:0 0 8px 8px;position:relative;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding-bottom:8px;cursor:pointer;color:#333;transition:background .08s}
+  .white:hover{background:#eee9d8}
+  .white.active{background:var(--whiteActive);box-shadow:inset 0 -4px 0 var(--accent)}
+  .white .solf{font-size:34px;font-weight:900;line-height:1.1}
+  .white .num{font-size:44px;font-weight:900;color:#111;line-height:1.1}
+  .key .chord{font-size:22px;font-weight:900;color:#555;margin-bottom:4px;line-height:1.1}
+  .black{position:absolute;top:0;width:9%;height:58%;background:var(--black);border-radius:0 0 5px 5px;z-index:2;box-shadow:0 3px 6px rgba(0,0,0,.5);cursor:pointer;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding-bottom:6px;color:#ccc;transition:background .08s}
+  .black:hover{background:#333}
+  .black.active{background:var(--blackActive);box-shadow:inset 0 -4px 0 var(--accent)}
+  .black .solf{font-size:18px;font-weight:900;line-height:1.1;text-align:center}
+  .black .num{font-size:30px;font-weight:900;color:#fff;line-height:1.1}
+  .black .chord{color:#ccc;font-size:14px}
+  .hint{font-size:11px;color:var(--muted);text-align:center;line-height:1.7}
+</style>
+</head>
+<body>
+<h1>🎸 AutoChord 自動撥弦</h1>
+
+<div class="panel">
+  <label>指法
+    <select id="pattern">
+      <option>T1213121</option>
+      <option>T123 121</option>
+      <option>T132T132</option>
+      <option>(32T)1(32)1(32)1(32)1</option>
+      <option>T123T123</option>
+      <option>T321T321</option>
+      <option>T 123 T 123</option>
+      <option>(T3)21(T3)21</option>
+      <option>(T123)   (T123)   </option>
+      <option value="custom">自訂…</option>
+    </select>
+  </label>
+  <label>自訂指法 <input id="custom" placeholder="例：T1213121" size="12"></label>
+  <label>音色
+    <select id="inst">
+      <option value="piano">鋼琴（取樣）</option>
+      <option value="guitar-nylon">尼龍吉他（取樣）</option>
+      <option value="guitar-acoustic">木吉他（取樣）</option>
+      <option value="ks">合成吉他（離線）</option>
+      <option value="synthpiano">合成鋼琴（離線）</option>
+      <option value="epiano">電鋼琴（離線）</option>
+    </select>
+  </label>
+  <label>調性
+    <select id="key">
+      <option value="0">C</option><option value="2">D</option><option value="4">E</option>
+      <option value="5">F</option><option value="7">G</option><option value="9">A</option>
+      <option value="11">B</option><option value="10">B♭</option><option value="3">E♭</option>
+    </select>
+  </label>
+  <label>和弦類型
+    <select id="ctype">
+      <option value="auto">自動（白鍵順階、黑鍵大三）</option>
+      <option value="">大三和弦</option>
+      <option value="m">小三和弦</option>
+      <option value="7">屬七</option>
+      <option value="maj7">大七</option>
+      <option value="m7">小七</option>
+      <option value="sus4">掛四</option>
+      <option value="dim">減三</option>
+    </select>
+  </label>
+  <label>速度 <span id="bpmv">90</span> BPM <input type="range" id="bpm" min="40" max="180" value="90"></label>
+  <label>循環 <select id="loop"><option value="1">持續循環</option><option value="0">只播一次</option></select></label>
+  <label>畫面大小
+    <select id="zoom">
+      <option value="0.4">40%</option>
+      <option value="0.5" selected>50%</option>
+      <option value="0.6">60%</option>
+      <option value="0.75">75%</option>
+      <option value="1">100%</option>
+      <option value="1.25">125%</option>
+      <option value="1.5">150%</option>
+    </select>
+  </label>
+  <button id="stop">■ 停止</button>
+  <button id="top" title="視窗永遠在最上層（桌面版）">📌 置頂</button>
+</div>
+
+<div class="display" id="display">點鍵盤（或按數字鍵 1–7、黑鍵用 Q W E R T）開始播放</div>
+<div class="pattern-view" id="pview"></div>
+
+<div class="keyboard" id="kb"></div>
+
+<div class="hint">
+  T = 拇指（根音）、1 2 3 = 食/中/無名指（第 3、2、1 弦）、括號 = 同時撥、空格 = 休止，每符號一個八分音符。<br>
+  白鍵 1–7 = 該調順階和弦；黑鍵 = 升降音根音和弦（Shift+點擊 或 右鍵 = 小三和弦）。空白鍵 / Esc 停止。
+</div>
+
+<script>
+// ---------- 基本資料 ----------
+const SOLF = ['Do','Re','Mi','Fa','Sol','La','Ti'];
+const MAJOR = [0,2,4,5,7,9,11];
+const NAMES = ['C','C#','D','E♭','E','F','F#','G','A♭','A','B♭','B'];
+const DIATONIC = ['','m','m','','','m','dim'];
+const QUAL_INT = {'':[0,4,7],'m':[0,3,7],'dim':[0,3,6],'7':[0,4,7,10],'maj7':[0,4,7,11],'m7':[0,3,7,10],'sus4':[0,5,7]};
+// 鍵盤按鍵：12 個半音，白鍵為 0,2,4,5,7,9,11
+const KEYS = [
+  {semi:0, white:true, deg:0}, {semi:1, black:true, label:'Di/Ra', num:'#1'},
+  {semi:2, white:true, deg:1}, {semi:3, black:true, label:'Ri/Me', num:'#2'},
+  {semi:4, white:true, deg:2},
+  {semi:5, white:true, deg:3}, {semi:6, black:true, label:'Fi/Se', num:'#4'},
+  {semi:7, white:true, deg:4}, {semi:8, black:true, label:'Si/Le', num:'#5'},
+  {semi:9, white:true, deg:5}, {semi:10,black:true, label:'Li/Te', num:'#6'},
+  {semi:11,white:true, deg:6},
+];
+
+// ---------- Web Audio ----------
+let ctx, master;
+function midiHz(m){ return 440*Math.pow(2,(m-69)/12); }
+function ensureCtx(){
+  if(!ctx){
+    ctx = new (window.AudioContext||window.webkitAudioContext)();
+    master = ctx.createGain(); master.gain.value = 0.8;
+    const comp = ctx.createDynamicsCompressor();
+    master.connect(comp).connect(ctx.destination);
+  }
+  if(ctx.state==='suspended') ctx.resume();
+}
+
+// Karplus-Strong 合成吉他
+const ksCache = new Map();
+function ksBuffer(midi){
+  if(ksCache.has(midi)) return ksCache.get(midi);
+  const sr = ctx.sampleRate, N = Math.floor(sr*2.2);
+  const buf = ctx.createBuffer(1,N,sr), d = buf.getChannelData(0);
+  const len = Math.round(sr/midiHz(midi));
+  const ring = new Float32Array(len);
+  for(let i=0;i<len;i++) ring[i] = Math.random()*2-1;
+  for(let i=1;i<len;i++) ring[i] = (ring[i]+ring[i-1])*0.5;
+  const decay = midi<52 ? 0.998 : 0.996;
+  let p=0;
+  for(let i=0;i<N;i++){ const cur=ring[p], nx=ring[(p+1)%len]; ring[p]=decay*0.5*(cur+nx); p=(p+1)%len; d[i]=cur; }
+  for(let i=N-2000;i<N;i++) d[i] *= (N-i)/2000;
+  ksCache.set(midi,buf); return buf;
+}
+function playKS(midi, when, gain){
+  const src=ctx.createBufferSource(); src.buffer=ksBuffer(midi);
+  const g=ctx.createGain(); g.gain.value=gain; src.connect(g).connect(master); src.start(when);
+}
+
+// 合成鋼琴 / 電鋼琴（加法合成 + 指數衰減）
+function playSynth(midi, when, gain, kind){
+  const f=midiHz(midi);
+  const harm = kind==='epiano' ? [[1,1],[2,.25],[3,.08],[7,.05]] : [[1,1],[2,.5],[3,.3],[4,.18],[5,.1],[6,.07],[8,.04]];
+  const out=ctx.createGain(); out.connect(master);
+  const dur = kind==='epiano' ? 2.5 : 3.2;
+  out.gain.setValueAtTime(0,when);
+  out.gain.linearRampToValueAtTime(gain*0.5,when+0.005);
+  out.gain.exponentialRampToValueAtTime(gain*0.15,when+0.4);
+  out.gain.exponentialRampToValueAtTime(0.0005,when+dur);
+  harm.forEach(([n,a])=>{
+    const o=ctx.createOscillator(); o.type= kind==='epiano'?'sine':'triangle';
+    o.frequency.value=f*n*(1+0.0004*n*n);          // 微小不諧和讓聲音更像琴弦
+    const g=ctx.createGain(); g.gain.value=a/Math.pow(n,0.3);
+    o.connect(g).connect(out); o.start(when); o.stop(when+dur+0.1);
+  });
+  // 擊槌雜訊
+  const nb=ctx.createBuffer(1,ctx.sampleRate*0.03,ctx.sampleRate), nd=nb.getChannelData(0);
+  for(let i=0;i<nd.length;i++) nd[i]=(Math.random()*2-1)*(1-i/nd.length);
+  const ns=ctx.createBufferSource(); ns.buffer=nb; const ng=ctx.createGain(); ng.gain.value=gain*0.15;
+  ns.connect(ng).connect(master); ns.start(when);
+}
+
+// 取樣樂器（nbrosowsky/tonejs-instruments，自動找最近的樣本並變速）
+const CDN='https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/';
+const SAMPLE_LIST = {
+  'piano': ['A0','A1','A2','A3','A4','A5','A6','A7','C1','C2','C3','C4','C5','C6','C7','C8','Ds1','Ds2','Ds3','Ds4','Ds5','Ds6','Ds7','Fs1','Fs2','Fs3','Fs4','Fs5','Fs6','Fs7'],
+  'guitar-nylon': ['Fs2','Fs3','Fs4','Fs5','G3','G5','Gs2','Gs4','Gs5','A2','A3','A4','A5','As5','B1','B2','B3','B4','Cs3','Cs4','Cs5','D2','D3','D5','Ds4','E2','E3','E4','E5','F3','F4','F5'],
+  'guitar-acoustic': ['F4','Fs2','Fs3','Fs4','G2','G3','G4','Gs2','Gs3','Gs4','A2','A3','A4','As2','As3','As4','B2','B3','B4','C3','C4','C5','Cs3','Cs4','Cs5','D2','D3','D4','Ds2','Ds3','Ds4','E2','E3','E4','F2','F3'],
+};
+const NOTE_IDX={C:0,Cs:1,D:2,Ds:3,E:4,F:5,Fs:6,G:7,Gs:8,A:9,As:10,B:11};
+function nameToMidi(n){ const m=n.match(/^([A-G]s?)(\d)$/); return 12*(+m[2]+1)+NOTE_IDX[m[1]]; }
+const samplers = {};   // name -> {notes:[{midi,buf}], loading, failed}
+async function loadSampler(name){
+  if(samplers[name]) return samplers[name];
+  const s = samplers[name] = {notes:[], ready:false, failed:false};
+  setStatus('載入 '+instLabel(name)+' 取樣中…');
+  const results = await Promise.all(SAMPLE_LIST[name].map(async n=>{
+    try{ const r=await fetch(CDN+name+'/'+n+'.mp3'); if(!r.ok) throw 0;
+      const buf=await ctx.decodeAudioData(await r.arrayBuffer()); return {midi:nameToMidi(n),buf}; }
+    catch(e){ return null; }
+  }));
+  s.notes = results.filter(Boolean).sort((a,b)=>a.midi-b.midi);
+  if(!s.notes.length){ s.failed=true; setStatus('無法載入取樣（離線？），改用合成音色'); }
+  else { s.ready=true; setStatus(''); }
+  return s;
+}
+function playSample(s, midi, when, gain){
+  let best=s.notes[0]; for(const n of s.notes) if(Math.abs(n.midi-midi)<Math.abs(best.midi-midi)) best=n;
+  const src=ctx.createBufferSource(); src.buffer=best.buf; src.playbackRate.value=Math.pow(2,(midi-best.midi)/12);
+  const g=ctx.createGain(); g.gain.value=gain*1.2;
+  g.gain.setValueAtTime(gain*1.2, when+2.5); g.gain.exponentialRampToValueAtTime(0.001, when+3.5);
+  src.connect(g).connect(master); src.start(when); src.stop(when+3.6);
+}
+function instLabel(v){ return [...instSel.options].find(o=>o.value===v)?.text||v; }
+
+function note(midi, when, gain){
+  const inst=instSel.value;
+  if(inst==='ks') return playKS(midi,when,gain);
+  if(inst==='synthpiano'||inst==='epiano') return playSynth(midi,when,gain,inst);
+  const s=samplers[inst];
+  if(s && s.ready) return playSample(s,midi,when,gain);
+  if(!s) loadSampler(inst);
+  return inst==='piano' ? playSynth(midi,when,gain,'synthpiano') : playKS(midi,when,gain);
+}
+
+// ---------- 和弦配置 ----------
+function chordFor(keyDef, forceMinor){
+  const root = (+keySel.value + keyDef.semi) % 12;
+  let q = ctypeSel.value;
+  if(q==='auto') q = keyDef.white ? DIATONIC[keyDef.deg] : '';
+  if(forceMinor) q = q==='dim'?'dim':(q.includes('7')?'m7':'m');
+  const ints = QUAL_INT[q] || QUAL_INT[''];
+  const bass = 40 + ((root-4+12)%12);
+  const up   = 55 + ((root-7+12)%12);
+  const upper = ints.map(i=>up+i);
+  if(upper.length===3) upper.push(up+12);  // 三和弦時，指 4 (若有) 撥高八度根音
+  return {name: NAMES[root]+q, bass, upper};
+}
+
+// ---------- 指法解析 ----------
+function parsePattern(str){
+  const steps=[]; let i=0;
+  while(i<str.length){
+    const c=str[i];
+    if(c==='('){
+      const j=str.indexOf(')',i);
+      const grp=(j<0?str.slice(i+1):str.slice(i+1,j)).replace(/\s/g,'').toUpperCase();
+      steps.push({label:'('+grp+')', fingers:grp.split('')}); i=(j<0?str.length:j+1);
+    }
+    else if(/[T1234t]/.test(c)){ steps.push({label:c.toUpperCase(), fingers:[c.toUpperCase()]}); i++; }
+    else if(c===' '||c==='-'||c==='_'){ steps.push({label:'·', fingers:[]}); i++; }
+    else i++;
+  }
+  return steps;
+}
+function fingerMidi(f, ch){
+  if(f==='T') return ch.bass;
+  const idx={'1':0,'2':1,'3':2,'4':3}[f];
+  return idx===undefined?null:ch.upper[idx];
+}
+
+// ---------- 播放排程 ----------
+const $=id=>document.getElementById(id);
+const keySel=$('key'), patSel=$('pattern'), customIn=$('custom'), bpmIn=$('bpm'), bpmV=$('bpmv'),
+      loopSel=$('loop'), disp=$('display'), pview=$('pview'), instSel=$('inst'), ctypeSel=$('ctype');
+let current=null, timer=null, stepIdx=0, nextTime=0, uiTimers=[], status='';
+
+function setStatus(s){ status=s; if(!current) disp.textContent = s || '點鍵盤（或按數字鍵 1–7、黑鍵用 Q W E R T）開始播放'; else showChord(); }
+function showChord(){ disp.innerHTML='<b>'+current.ch.name+'</b> 指法 '+currentPattern()+(status?' <small>'+status+'</small>':''); }
+function currentPattern(){ return patSel.value==='custom' ? customIn.value : patSel.value; }
+function renderPattern(active=-1){
+  pview.innerHTML = parsePattern(currentPattern()).map((s,i)=>'<span class="'+(i===active?'on':'')+'">'+s.label+'</span>').join('');
+}
+function clearTimers(){
+  clearInterval(timer); timer=null; uiTimers.forEach(clearTimeout); uiTimers=[];
+  document.querySelectorAll('.key.active').forEach(e=>e.classList.remove('active'));
+}
+function stop(){ clearTimers(); current=null; renderPattern(); setStatus(status); if(!status) disp.textContent='已停止'; }
+function play(keyIdx, forceMinor=false){
+  ensureCtx();
+  const steps=parsePattern(currentPattern());
+  if(!steps.length){ disp.textContent='指法為空'; return; }
+  clearTimers();
+  document.querySelector('.key[data-idx="'+keyIdx+'"]').classList.add('active');
+  current={keyIdx, forceMinor, ch:chordFor(KEYS[keyIdx],forceMinor), steps};
+  showChord();
+  stepIdx=0; nextTime=ctx.currentTime+0.05;
+  scheduler(); timer=setInterval(scheduler,25);
+}
+function scheduler(){
+  if(!current) return;
+  const stepDur = 60/(+bpmIn.value)/2;
+  while(nextTime < ctx.currentTime+0.15){
+    const s=current.steps[stepIdx];
+    s.fingers.forEach((f,k)=>{ const m=fingerMidi(f,current.ch); if(m!=null) note(m, nextTime+k*0.012, f==='T'?0.7:0.5); });
+    const idx=stepIdx, delay=(nextTime-ctx.currentTime)*1000;
+    uiTimers.push(setTimeout(()=>renderPattern(idx), Math.max(0,delay)));
+    nextTime += stepDur; stepIdx++;
+    if(stepIdx>=current.steps.length){
+      if(loopSel.value==='1') stepIdx=0;
+      else { uiTimers.push(setTimeout(stop,(nextTime-ctx.currentTime)*1000)); clearInterval(timer); timer=null; return; }
+    }
+  }
+}
+
+// ---------- 建鍵盤 ----------
+const kb=$('kb');
+function buildKeyboard(){
+  kb.innerHTML='';
+  let whiteN=0;
+  KEYS.forEach((k,i)=>{
+    const el=document.createElement('div'); el.dataset.idx=i;
+    if(k.white){
+      el.className='key white';
+      el.innerHTML='<div class="chord"></div><div class="solf">'+SOLF[k.deg]+'</div><div class="num">'+(k.deg+1)+'</div>';
+      whiteN++;
+    } else {
+      el.className='key black';
+      el.style.left='calc('+(whiteN*100/7)+'% - 4.5%)';
+      el.innerHTML='<div class="chord"></div><div class="solf">'+k.label+'</div><div class="num">'+k.num+'</div>';
+    }
+    el.addEventListener('pointerdown',e=>{ e.preventDefault(); play(i, e.shiftKey||e.button===2); });
+    el.addEventListener('contextmenu',e=>e.preventDefault());
+    kb.appendChild(el);
+  });
+  updateChordLabels();
+}
+function updateChordLabels(){
+  document.querySelectorAll('.key').forEach(el=>{ el.querySelector('.chord').textContent=chordFor(KEYS[+el.dataset.idx],false).name; });
+}
+buildKeyboard(); renderPattern();
+
+// ---------- 事件 ----------
+const replay=()=>{ if(current) play(current.keyIdx,current.forceMinor); };
+$('stop').onclick=stop;
+bpmIn.oninput=()=>bpmV.textContent=bpmIn.value;
+keySel.onchange=()=>{ updateChordLabels(); replay(); };
+ctypeSel.onchange=()=>{ updateChordLabels(); replay(); };
+patSel.onchange=()=>{ renderPattern(); replay(); };
+customIn.oninput=()=>{ patSel.value='custom'; renderPattern(); replay(); };
+instSel.onchange=()=>{ ensureCtx(); if(SAMPLE_LIST[instSel.value]) loadSampler(instSel.value); };
+
+const WHITE_IDX=[0,2,4,5,7,9,11], BLACK_KEYS={q:1,w:3,e:6,r:8,t:10};
+window.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT') return;
+  const k=e.key.toLowerCase();
+  if(/^[1-7]$/.test(k)) play(WHITE_IDX[+k-1], e.shiftKey);
+  else if(k in BLACK_KEYS) play(BLACK_KEYS[k], e.shiftKey);
+  else if(e.key===' '||e.key==='Escape'){ e.preventDefault(); stop(); }
+});
+
+// ---------- 畫面縮放 ----------
+const zoomSel=$('zoom');
+function applyZoom(z){
+  document.body.style.zoom=z;
+  zoomSel.value=String(z);
+  try{ localStorage.setItem('autochord.zoom',z); }catch(e){}
+}
+let savedZoom=0.5;
+try{ savedZoom=parseFloat(localStorage.getItem('autochord.zoom'))||0.5; }catch(e){}
+if(![...zoomSel.options].some(o=>+o.value===savedZoom)) savedZoom=0.5;
+applyZoom(savedZoom);
+zoomSel.onchange=()=>applyZoom(+zoomSel.value);
+window.addEventListener('keydown',e=>{
+  if(!(e.ctrlKey||e.metaKey)) return;
+  const opts=[...zoomSel.options].map(o=>+o.value), i=opts.indexOf(+zoomSel.value);
+  if(e.key==='='||e.key==='+'){ e.preventDefault(); if(i<opts.length-1) applyZoom(opts[i+1]); }
+  else if(e.key==='-'){ e.preventDefault(); if(i>0) applyZoom(opts[i-1]); }
+  else if(e.key==='0'){ e.preventDefault(); applyZoom(0.5); }
+});
+
+// ---------- 置頂（Electron 桌面版才有效） ----------
+const topBtn=$('top');
+if(window.autochord){
+  window.autochord.isAlwaysOnTop().then(v=>topBtn.classList.toggle('on',v));
+  topBtn.onclick=async()=>{ const v=await window.autochord.toggleAlwaysOnTop(); topBtn.classList.toggle('on',v); };
+} else {
+  topBtn.onclick=()=>alert('置頂功能需要用桌面版啟動（執行 start.bat）。瀏覽器無法讓網頁永遠在最上層。');
+}
+// 第一次互動就先預載鋼琴取樣
+window.addEventListener('pointerdown',()=>{ ensureCtx(); if(SAMPLE_LIST[instSel.value]) loadSampler(instSel.value); },{once:true});
+</script>
+</body>
+</html>
